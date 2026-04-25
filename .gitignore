@@ -1,3 +1,43 @@
+# Project-specific
 .omc
 data/
 frontend/public/gym_data*.csv
+
+# Python backend
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+ENV/
+backend/*.egg-info/
+backend/dist/
+backend/build/
+backend/biome.db
+backend/wallet/
+
+# Node.js frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.npm
+.yarn-integrity
+
+# Logs
+*.log
+logs/
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
