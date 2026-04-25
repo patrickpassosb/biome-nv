@@ -168,9 +168,9 @@ export default function ProgressScreen() {
           {volume.length >= 2 && (
             <div className="mt-4 flex items-center gap-2 text-sm">
               <span className="text-on-surface-variant">This week:</span>
-              <span className="text-white font-mono">{Object.values(volume[volume.length - 1].muscles).reduce((a: number, b: number) => a + b, 0).toFixed(0)}</span>
+              <span className="text-white font-mono">{(Object.values(volume[volume.length - 1].muscles) as number[]).reduce((a, b) => a + b, 0).toFixed(0)}</span>
               <span className="text-on-surface-variant">sets · Last week:</span>
-              <span className="text-white font-mono">{Object.values(volume[volume.length - 2].muscles).reduce((a: number, b: number) => a + b, 0).toFixed(0)}</span>
+              <span className="text-white font-mono">{(Object.values(volume[volume.length - 2].muscles) as number[]).reduce((a, b) => a + b, 0).toFixed(0)}</span>
             </div>
           )}
         </div>

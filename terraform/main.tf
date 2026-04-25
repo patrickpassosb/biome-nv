@@ -91,24 +91,13 @@ resource "oci_database_autonomous_database" "biome_db" {
   admin_password           = var.db_admin_password
   
   # Network access
-  whitelist_ips {
-    ip_value = "0.0.0.0/0"
-  }
+  whitelisted_ips = ["0.0.0.0/0"]
   
   # Free tier configuration
   is_free_tier = var.use_free_tier
   
   # License model
   license_model = var.use_free_tier ? "BRING_YOUR_OWN_LICENSE" : "LICENSE_INCLUDED"
-  
-  # Access control
-  are_primary_whitelisted_ips_used = true
-  
-  lifecycle {
-    ignore_changes = [
-      whitelist_ips
-    ]
-  }
 }
 
 # Object Storage for wallet
@@ -117,10 +106,7 @@ resource "oci_objectstorage_bucket" "biome_wallet_bucket" {
   name           = "biome-wallet-bucket"
   namespace      = var.object_storage_namespace
   access_type    = "Public"  # Change to "NoPublicAccess" for production
-  
-  versioning {
-    enabled = false
-  }
+  versioning     = "Disabled"
 }
 
 # Output important values
