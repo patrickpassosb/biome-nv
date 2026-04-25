@@ -47,5 +47,11 @@ terraform/.terraform/
 terraform/.terraform.lock.hcl
 terraform/.terraform.tfstate.lock.info
 terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
 terraform/terraform.tfvars
 oci/
+
+# Env files with secrets
+.env
+.env.*
+!.env.example
