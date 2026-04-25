@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Progress - Biome</title>
+<!-- Fonts & Icons -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=Space+Grotesk:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-surface-variant": "#d8c3ad",
+                    "secondary": "#adc6ff",
+                    "on-secondary-container": "#e6ecff",
+                    "on-secondary": "#002e6a",
+                    "inverse-on-surface": "#382f25",
+                    "surface-variant": "#3c3329",
+                    "tertiary-container": "#1abdff",
+                    "surface-container-high": "#31281f",
+                    "surface-container-highest": "#3c3329",
+                    "secondary-container": "#0566d9",
+                    "surface-bright": "#41382e",
+                    "primary-fixed-dim": "#ffb95f",
+                    "on-tertiary-container": "#004966",
+                    "secondary-fixed-dim": "#adc6ff",
+                    "surface": "#19120a",
+                    "primary": "#ffc174",
+                    "tertiary-fixed-dim": "#7fd0ff",
+                    "primary-fixed": "#ffddb8",
+                    "inverse-surface": "#f0e0d1",
+                    "surface-container-low": "#221a12",
+                    "on-secondary-fixed": "#001a42",
+                    "outline-variant": "#534434",
+                    "outline": "#a08e7a",
+                    "tertiary": "#8fd5ff",
+                    "surface-container-lowest": "#140d06",
+                    "secondary-fixed": "#d8e2ff",
+                    "on-background": "#f0e0d1",
+                    "error": "#ffb4ab",
+                    "on-primary": "#472a00",
+                    "on-tertiary-fixed": "#001e2d",
+                    "inverse-primary": "#855300",
+                    "surface-tint": "#ffb95f",
+                    "on-primary-fixed": "#2a1700",
+                    "primary-container": "#f59e0b",
+                    "on-primary-fixed-variant": "#653e00",
+                    "on-secondary-fixed-variant": "#004395",
+                    "on-error": "#690005",
+                    "surface-dim": "#19120a",
+                    "background": "#19120a",
+                    "on-tertiary": "#00344a",
+                    "on-primary-container": "#613b00",
+                    "error-container": "#93000a",
+                    "tertiary-fixed": "#c5e7ff",
+                    "on-tertiary-fixed-variant": "#004c6a",
+                    "on-error-container": "#ffdad6",
+                    "surface-container": "#261e15",
+                    "on-surface": "#f0e0d1"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "sm": "8px",
+                    "xl": "48px",
+                    "xs": "4px",
+                    "lg": "24px",
+                    "md": "16px",
+                    "section": "64px"
+            },
+            "fontFamily": {
+                    "body-sm": ["Inter"],
+                    "data-metric": ["Space Grotesk"],
+                    "display-xl": ["Inter"],
+                    "heading-md": ["Inter"],
+                    "body-base": ["Inter"],
+                    "heading-lg": ["Inter"],
+                    "label-caps": ["Inter"]
+            },
+            "fontSize": {
+                    "body-sm": ["12px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}],
+                    "data-metric": ["28px", {"lineHeight": "1.1", "letterSpacing": "-0.03em", "fontWeight": "500"}],
+                    "display-xl": ["36px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "heading-md": ["18px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                    "body-base": ["14px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                    "heading-lg": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-caps": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}]
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-base text-body-base flex min-h-screen antialiased selection:bg-primary-container selection:text-black">
+<!-- SideNavBar (Shared Component) -->
+<aside class="w-[240px] h-screen border-r border-[#262626] fixed left-0 top-0 bg-[#0a0a0a] dark:bg-[#0a0a0a] shadow-none flex flex-col justify-between py-8 z-40">
+<div class="flex flex-col w-full">
+<!-- Brand & User Profile Header -->
+<div class="px-6 mb-12 flex flex-col gap-md">
+<div class="text-xl font-bold tracking-tighter text-white">Biome</div>
+<div class="flex items-center gap-md mt-sm">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest border border-surface-container overflow-hidden">
+<img alt="Patrick profile photo" class="w-full h-full object-cover" data-alt="Headshot of a focused male athlete with dark hair in dramatic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBtnlLrAE1hZI-mvl9LwcyH884WnuGCz1hYUmWVbfaAojnC1utSZGzqQzR69nYe0onuerkv4TTmETgGuoH_2-ksCIGJDziot32ELFOepxANHpS7p-G7fLIV_EL-kaFyuFUsS85xDQMgg7UEt4mtYFS9V0GCfUiZlhti--_5WU5cABksheuTK1kSCFOPYSv714HZfjCj2IhQXim1Ippdyb600hlztgDwI3TAsqUYhgFDpx2rP0cE9RrXBZUXxDEaJ3ohwrjSdtCxJ-g3"/>
+</div>
+<div class="flex flex-col">
+<span class="font-heading-md text-heading-md text-white">Patrick</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Building muscle · Week 12</span>
+</div>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex flex-col w-full gap-xs">
+<!-- Inactive Tab -->
+<a class="font-sans text-sm tracking-tight font-medium text-neutral-500 hover:text-neutral-200 pl-4 py-2 transition-colors hover:bg-neutral-900/30 transition-all duration-200 flex items-center gap-md mx-4 rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">calendar_today</span>
+<span>Today</span>
+</a>
+<!-- Active Tab -->
+<a class="font-sans text-sm tracking-tight font-medium text-white border-l-2 border-[#f59e0b] pl-4 py-2 bg-neutral-900/50 opacity-90 transition-opacity flex items-center gap-md ml-[14px] mr-4 rounded-r-lg" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#f59e0b]" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+<span>Progress</span>
+</a>
+<!-- Inactive Tab -->
+<a class="font-sans text-sm tracking-tight font-medium text-neutral-500 hover:text-neutral-200 pl-4 py-2 transition-colors hover:bg-neutral-900/30 transition-all duration-200 flex items-center gap-md mx-4 rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">fitness_center</span>
+<span>Log Workout</span>
+</a>
+<!-- Inactive Tab -->
+<a class="font-sans text-sm tracking-tight font-medium text-neutral-500 hover:text-neutral-200 pl-4 py-2 transition-colors hover:bg-neutral-900/30 transition-all duration-200 flex items-center gap-md mx-4 rounded-lg" href="#">
+<span class="material-symbols-outlined text-[20px]">smart_toy</span>
+<span>Ask Coach</span>
+</a>
+</nav>
+</div>
+<!-- Bottom Section (Settings/Logout placeholder if needed, matching minimalist style) -->
+<div class="px-6 mt-auto">
+<a class="font-sans text-sm tracking-tight font-medium text-neutral-500 hover:text-neutral-200 py-2 transition-colors flex items-center gap-md" href="#">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+<span>Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 ml-[240px] flex flex-col min-h-screen bg-background relative">
+<!-- TopAppBar (Shared Component) -->
+<header class="h-16 border-b border-[#262626] sticky top-0 z-50 shadow-none bg-[#0a0a0a]/80 backdrop-blur-md">
+<div class="max-w-[1200px] mx-auto flex items-center justify-between w-full px-6 h-full">
+<!-- Left: Product Name -->
+<div class="text-lg font-black text-white tracking-tighter">Biome</div>
+<!-- Right: Actions -->
+<div class="flex items-center gap-md">
+<button class="font-sans uppercase tracking-widest text-[10px] font-bold text-neutral-500 hover:text-[#f59e0b] transition-colors active:scale-95 flex items-center justify-center w-8 h-8 rounded-full">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</button>
+<button class="font-sans uppercase tracking-widest text-[10px] font-bold text-neutral-500 hover:text-[#f59e0b] transition-colors active:scale-95 flex items-center justify-center w-8 h-8 rounded-full">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Page Canvas -->
+<div class="max-w-[1200px] mx-auto w-full px-6 py-12 flex flex-col gap-lg">
+<!-- Page Header & Controls -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-md mb-md">
+<div class="flex flex-col gap-sm">
+<h1 class="font-display-xl text-display-xl text-white">Progress</h1>
+<p class="font-body-base text-body-base text-on-surface-variant flex items-center gap-sm">
+<span class="material-symbols-outlined text-[16px]">history</span>
+                        Last 8 weeks
+                    </p>
+</div>
+<div class="flex items-center gap-md">
+<!-- Date Range Selector -->
+<button class="bg-surface-container-lowest border border-surface-container-highest hover:border-outline-variant px-md py-sm rounded-lg flex items-center gap-md transition-colors h-10 group">
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-white transition-colors">calendar_month</span>
+<span class="font-body-sm text-body-sm text-on-surface group-hover:text-white transition-colors">Oct 12 - Dec 07</span>
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-white transition-colors">expand_more</span>
+</button>
+</div>
+</div>
+<!-- Custom Tabs -->
+<nav class="flex gap-lg border-b border-surface-container-highest mb-sm">
+<button class="font-heading-md text-heading-md text-primary-container border-b-2 border-primary-container pb-md px-xs relative top-[1px]">
+                    Exercises
+                </button>
+<button class="font-heading-md text-heading-md text-on-surface-variant hover:text-on-surface pb-md px-xs transition-colors">
+                    Volume
+                </button>
+<button class="font-heading-md text-heading-md text-on-surface-variant hover:text-on-surface pb-md px-xs transition-colors">
+                    Asymmetries
+                </button>
+</nav>
+<!-- Grid Layout (Exercises Tab Content) -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-xl items-start">
+<!-- Left Column: Exercise List (40%) -->
+<div class="md:col-span-5 flex flex-col gap-sm">
+<!-- Search/Filter Input -->
+<div class="relative mb-sm">
+<span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="w-full h-10 bg-surface-container-lowest border border-surface-container-highest rounded-lg pl-[40px] pr-md font-body-sm text-body-sm text-white placeholder-on-surface-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-colors outline-none" placeholder="Filter exercises..." type="text"/>
+</div>
+<!-- Active Card -->
+<div class="bg-[#141414] border-l-2 border-l-primary-container border-y border-r border-[#262626] rounded-r-lg p-md flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors relative overflow-hidden">
+<div class="flex flex-col gap-xs z-10">
+<span class="font-heading-md text-heading-md text-white">Barbell Squat</span>
+<span class="font-label-caps text-label-caps text-primary-container bg-primary-container/10 px-xs py-[2px] rounded uppercase w-max tracking-widest">Progressing</span>
+</div>
+<div class="flex items-center gap-md z-10">
+<!-- Minimal Sparkline representation -->
+<svg class="opacity-80" height="24" viewbox="0 0 60 24" width="60">
+<path d="M0 20 Q 10 20, 15 15 T 30 18 T 45 10 T 60 5" fill="none" stroke="#f59e0b" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+<span class="font-data-metric text-data-metric text-white">140<span class="text-body-sm text-on-surface-variant ml-xs">kg</span></span>
+</div>
+<!-- Subtle active background gradient -->
+<div class="absolute inset-0 bg-gradient-to-r from-primary-container/5 to-transparent z-0 pointer-events-none"></div>
+</div>
+<!-- Inactive Card -->
+<div class="bg-[#141414] border border-[#262626] rounded-lg p-md flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors">
+<div class="flex flex-col gap-xs">
+<span class="font-heading-md text-heading-md text-on-surface">Bench Press</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant bg-surface-container-high px-xs py-[2px] rounded uppercase w-max tracking-widest">Stalled</span>
+</div>
+<div class="flex items-center gap-md opacity-60 grayscale hover:grayscale-0 transition-all">
+<svg height="24" viewbox="0 0 60 24" width="60">
+<path d="M0 15 Q 10 15, 15 15 T 30 16 T 45 14 T 60 15" fill="none" stroke="#a08e7a" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+<span class="font-data-metric text-data-metric text-on-surface">95<span class="text-body-sm text-on-surface-variant ml-xs">kg</span></span>
+</div>
+</div>
+<!-- Inactive Card -->
+<div class="bg-[#141414] border border-[#262626] rounded-lg p-md flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors">
+<div class="flex flex-col gap-xs">
+<span class="font-heading-md text-heading-md text-on-surface">Deadlift</span>
+<span class="font-label-caps text-label-caps text-secondary-fixed-dim bg-secondary-fixed-dim/10 px-xs py-[2px] rounded uppercase w-max tracking-widest">New Base</span>
+</div>
+<div class="flex items-center gap-md opacity-60 grayscale hover:grayscale-0 transition-all">
+<svg height="24" viewbox="0 0 60 24" width="60">
+<path d="M0 22 Q 10 18, 15 12 T 30 10 T 45 8 T 60 4" fill="none" stroke="#a08e7a" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+<span class="font-data-metric text-data-metric text-on-surface">160<span class="text-body-sm text-on-surface-variant ml-xs">kg</span></span>
+</div>
+</div>
+<!-- Inactive Card -->
+<div class="bg-[#141414] border border-[#262626] rounded-lg p-md flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors">
+<div class="flex flex-col gap-xs">
+<span class="font-heading-md text-heading-md text-on-surface">Overhead Press</span>
+<span class="font-label-caps text-label-caps text-primary-container bg-primary-container/10 px-xs py-[2px] rounded uppercase w-max tracking-widest">Progressing</span>
+</div>
+<div class="flex items-center gap-md opacity-60 grayscale hover:grayscale-0 transition-all">
+<svg height="24" viewbox="0 0 60 24" width="60">
+<path d="M0 18 Q 10 16, 15 14 T 30 15 T 45 10 T 60 8" fill="none" stroke="#a08e7a" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+<span class="font-data-metric text-data-metric text-on-surface">65<span class="text-body-sm text-on-surface-variant ml-xs">kg</span></span>
+</div>
+</div>
+</div>
+<!-- Right Column: Detailed Chart Area (60%) -->
+<div class="md:col-span-7 flex flex-col">
+<!-- Main Chart Card -->
+<div class="bg-[#141414] border border-[#262626] rounded-lg p-lg flex flex-col w-full min-h-[500px]">
+<!-- Chart Header -->
+<div class="flex items-start justify-between mb-xl">
+<div class="flex flex-col gap-xs">
+<h2 class="font-heading-lg text-heading-lg text-white">Barbell Squat</h2>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Estimated 1RM trend over 8 weeks</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-data-metric text-data-metric text-primary-container">145.5<span class="text-body-base text-on-surface-variant ml-xs">kg</span></span>
+<span class="font-label-caps text-label-caps text-primary-container tracking-widest">+5.2% vs prev.</span>
+</div>
+</div>
+<!-- Chart Canvas (High-fidelity SVG representation) -->
+<div class="flex-1 w-full relative min-h-[250px] mb-lg">
+<!-- Y-axis guidelines -->
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none z-0">
+<div class="border-t border-[#262626] w-full h-0 relative"><span class="absolute -top-[10px] right-full pr-sm font-label-caps text-label-caps text-on-surface-variant">150</span></div>
+<div class="border-t border-[#262626] w-full h-0 relative"><span class="absolute -top-[10px] right-full pr-sm font-label-caps text-label-caps text-on-surface-variant">140</span></div>
+<div class="border-t border-[#262626] w-full h-0 relative"><span class="absolute -top-[10px] right-full pr-sm font-label-caps text-label-caps text-on-surface-variant">130</span></div>
+<div class="border-t border-[#262626] w-full h-0 relative"><span class="absolute -top-[10px] right-full pr-sm font-label-caps text-label-caps text-on-surface-variant">120</span></div>
+</div>
+<!-- X-axis labels -->
+<div class="absolute -bottom-6 w-full flex justify-between font-label-caps text-label-caps text-on-surface-variant px-md">
+<span>W1</span>
+<span>W2</span>
+<span>W3</span>
+<span>W4</span>
+<span>W5</span>
+<span>W6</span>
+<span>W7</span>
+<span>W8</span>
+</div>
+<!-- The Data Line & Area Gradient -->
+<svg class="absolute inset-0 w-full h-full z-10" preserveaspectratio="none" viewbox="0 0 100 100">
+<defs>
+<lineargradient id="chart-gradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#f59e0b" stop-opacity="0.3"></stop>
+<stop offset="100%" stop-color="#f59e0b" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<!-- Area fill -->
+<path d="M0 100 L0 70 C 15 70, 25 75, 40 60 C 50 50, 60 65, 75 40 C 85 25, 95 30, 100 15 L100 100 Z" fill="url(#chart-gradient)"></path>
+<!-- Stroke line -->
+<path d="M0 70 C 15 70, 25 75, 40 60 C 50 50, 60 65, 75 40 C 85 25, 95 30, 100 15" fill="none" stroke="#f59e0b" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+<!-- Data points -->
+<circle cx="40" cy="60" fill="#141414" r="1.5" stroke="#f59e0b" stroke-width="1"></circle>
+<circle cx="75" cy="40" fill="#141414" r="1.5" stroke="#f59e0b" stroke-width="1"></circle>
+<circle cx="100" cy="15" fill="#f59e0b" r="2"></circle>
+</svg>
+</div>
+<!-- Secondary Metrics Row -->
+<div class="grid grid-cols-3 gap-md pt-lg border-t border-[#262626] mt-auto">
+<!-- Metric 1 -->
+<div class="flex flex-col gap-xs">
+<span class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px]">weight</span>
+                                    Peak Volume
+                                </span>
+<span class="font-data-metric text-data-metric text-white">4,200<span class="text-body-sm text-on-surface-variant ml-xs">kg</span></span>
+</div>
+<!-- Metric 2 -->
+<div class="flex flex-col gap-xs">
+<span class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px]">repeat</span>
+                                    Total Sets
+                                </span>
+<span class="font-data-metric text-data-metric text-white">48</span>
+</div>
+<!-- Metric 3 -->
+<div class="flex flex-col gap-xs">
+<span class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px]">speed</span>
+                                    Avg Intensity
+                                </span>
+<span class="font-data-metric text-data-metric text-white">82<span class="text-body-sm text-on-surface-variant ml-xs">%</span></span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

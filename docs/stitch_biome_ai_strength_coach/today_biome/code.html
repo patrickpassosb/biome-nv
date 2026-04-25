@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Today - Biome</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=Space+Grotesk:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface-variant": "#d8c3ad",
+                        "secondary": "#adc6ff",
+                        "on-secondary-container": "#e6ecff",
+                        "on-secondary": "#002e6a",
+                        "inverse-on-surface": "#382f25",
+                        "surface-variant": "#3c3329",
+                        "tertiary-container": "#1abdff",
+                        "surface-container-high": "#31281f",
+                        "surface-container-highest": "#3c3329",
+                        "secondary-container": "#0566d9",
+                        "surface-bright": "#41382e",
+                        "primary-fixed-dim": "#ffb95f",
+                        "on-tertiary-container": "#004966",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "surface": "#19120a",
+                        "primary": "#ffc174",
+                        "tertiary-fixed-dim": "#7fd0ff",
+                        "primary-fixed": "#ffddb8",
+                        "inverse-surface": "#f0e0d1",
+                        "surface-container-low": "#221a12",
+                        "on-secondary-fixed": "#001a42",
+                        "outline-variant": "#534434",
+                        "outline": "#a08e7a",
+                        "tertiary": "#8fd5ff",
+                        "surface-container-lowest": "#140d06",
+                        "secondary-fixed": "#d8e2ff",
+                        "on-background": "#f0e0d1",
+                        "error": "#ffb4ab",
+                        "on-primary": "#472a00",
+                        "on-tertiary-fixed": "#001e2d",
+                        "inverse-primary": "#855300",
+                        "surface-tint": "#ffb95f",
+                        "on-primary-fixed": "#2a1700",
+                        "primary-container": "#f59e0b",
+                        "on-primary-fixed-variant": "#653e00",
+                        "on-secondary-fixed-variant": "#004395",
+                        "on-error": "#690005",
+                        "surface-dim": "#19120a",
+                        "background": "#19120a",
+                        "on-tertiary": "#00344a",
+                        "on-primary-container": "#613b00",
+                        "error-container": "#93000a",
+                        "tertiary-fixed": "#c5e7ff",
+                        "on-tertiary-fixed-variant": "#004c6a",
+                        "on-error-container": "#ffdad6",
+                        "surface-container": "#261e15",
+                        "on-surface": "#f0e0d1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "sm": "8px",
+                        "xl": "48px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "md": "16px",
+                        "section": "64px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Inter"],
+                        "data-metric": ["Space Grotesk"],
+                        "display-xl": ["Inter"],
+                        "heading-md": ["Inter"],
+                        "body-base": ["Inter"],
+                        "heading-lg": ["Inter"],
+                        "label-caps": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["12px", { "lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400" }],
+                        "data-metric": ["28px", { "lineHeight": "1.1", "letterSpacing": "-0.03em", "fontWeight": "500" }],
+                        "display-xl": ["36px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "heading-md": ["18px", { "lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                        "body-base": ["14px", { "lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400" }],
+                        "heading-lg": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-caps": ["11px", { "lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #0a0a0a;
+            color: #fafafa;
+        }
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #262626;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #333;
+        }
+    </style>
+</head>
+<body class="font-body-base text-body-base bg-background text-on-surface antialiased flex">
+<!-- SideNavBar -->
+<nav class="w-[240px] h-screen border-r border-[#262626] fixed left-0 top-0 bg-[#0a0a0a] dark:bg-[#0a0a0a] flex flex-col justify-between py-8 hidden md:flex z-40">
+<div>
+<div class="px-6 mb-8">
+<span class="text-xl font-bold tracking-tighter text-white">Biome</span>
+</div>
+<div class="px-6 mb-8 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container overflow-hidden border border-[#262626]">
+<img alt="Patrick profile photo" class="w-full h-full object-cover" data-alt="Close up portrait of a serious athletic man looking forward, dark moody lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDfc_t2fC-vsGk6h3BHTpaLDyxdKRqw1IkC3VdtDtxxG6661zvTJMtexOTW0LQMjyJtsU3WojBWJXsVIPCxbbnhSr9Ar446sNV4vnuzopYSY5ihZiT1zuTtjAcfBGiGMLh81g3Z3PHioEyt-F-Uwd_b50ALTqhzXYzTB6s1IcxpyyVk2tvQ3M244-zAvmS4toSazrv_G14F6_Lz554S3qmnZc3Zu0rFNDzjXVN8TAmX2Ol_AU-imfPRvfZCLJcBtF98mdWvmsCljmI1"/>
+</div>
+<div>
+<div class="font-sans text-sm tracking-tight font-medium text-white">Patrick</div>
+<div class="text-[10px] text-neutral-500">Building muscle · Week 12</div>
+</div>
+</div>
+<ul class="flex flex-col gap-1 w-full">
+<li>
+<a class="flex items-center gap-3 w-full text-white border-l-2 border-[#f59e0b] pl-4 py-2 bg-neutral-900/50 opacity-90 transition-opacity" href="#">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+<span class="font-sans text-sm tracking-tight font-medium">Today</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 w-full text-neutral-500 hover:text-neutral-200 pl-4 py-2 transition-colors hover:bg-neutral-900/30 transition-all duration-200 border-l-2 border-transparent" href="#">
+<span class="material-symbols-outlined text-[20px]">trending_up</span>
+<span class="font-sans text-sm tracking-tight font-medium">Progress</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 w-full text-neutral-500 hover:text-neutral-200 pl-4 py-2 transition-colors hover:bg-neutral-900/30 transition-all duration-200 border-l-2 border-transparent" href="#">
+<span class="material-symbols-outlined text-[20px]">fitness_center</span>
+<span class="font-sans text-sm tracking-tight font-medium">Log Workout</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 w-full text-neutral-500 hover:text-neutral-200 pl-4 py-2 transition-colors hover:bg-neutral-900/30 transition-all duration-200 border-l-2 border-transparent" href="#">
+<span class="material-symbols-outlined text-[20px]">smart_toy</span>
+<span class="font-sans text-sm tracking-tight font-medium">Ask Coach</span>
+</a>
+</li>
+</ul>
+</div>
+<div class="px-6 mt-auto">
+<a class="flex items-center gap-3 w-full text-neutral-500 hover:text-neutral-200 transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+<span class="font-sans text-sm tracking-tight font-medium">Sign Out</span>
+</a>
+</div>
+</nav>
+<!-- TopAppBar (Mobile) -->
+<header class="h-16 border-b border-[#262626] sticky top-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-md md:hidden w-full flex items-center justify-between px-6">
+<div class="text-lg font-black text-white tracking-tighter">Biome</div>
+<div class="flex items-center gap-4 text-[#f59e0b]">
+<button class="text-neutral-500 hover:text-[#f59e0b] transition-colors active:scale-95">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-neutral-500 hover:text-[#f59e0b] transition-colors active:scale-95">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-1 md:ml-[240px] w-full min-h-screen bg-[#0a0a0a]">
+<!-- Header Area -->
+<div class="w-full max-w-[1200px] mx-auto px-6 py-12 pt-8 md:pt-16">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+<div>
+<h1 class="font-display-xl text-display-xl text-white mb-2">Today</h1>
+<div class="flex items-center gap-3 text-neutral-400">
+<span class="font-body-base text-body-base">Saturday, April 26 · Push Day</span>
+</div>
+</div>
+<div>
+<div class="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-[#141414] border border-[#262626]">
+<span class="material-symbols-outlined text-[16px] text-neutral-400">schedule</span>
+<span class="font-label-caps text-label-caps text-neutral-300">ESTIMATED 55 MIN</span>
+</div>
+</div>
+</div>
+<!-- Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Left Column (65%) -->
+<div class="lg:col-span-8 flex flex-col gap-6">
+<!-- Exercise Card 1 -->
+<div class="bg-[#141414] border border-[#262626] rounded-xl p-6">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h3 class="font-heading-lg text-heading-lg text-white mb-1">Barbell Bench Press</h3>
+<p class="font-body-sm text-body-sm text-neutral-500">Target: Pectoralis Major, Anterior Deltoid</p>
+</div>
+<div class="flex items-center gap-1 text-neutral-500">
+<span class="material-symbols-outlined text-[18px]">info</span>
+</div>
+</div>
+<!-- Prescription Row -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+<div class="bg-[#0a0a0a] border border-[#262626] rounded-lg p-4">
+<div class="font-label-caps text-label-caps text-neutral-500 mb-1">SETS X REPS</div>
+<div class="font-data-metric text-data-metric text-white">4 x 8</div>
+</div>
+<div class="bg-[#0a0a0a] border border-[#262626] rounded-lg p-4">
+<div class="font-label-caps text-label-caps text-neutral-500 mb-1">WEIGHT</div>
+<div class="font-data-metric text-data-metric text-white">205<span class="text-sm text-neutral-500 ml-1">lbs</span></div>
+</div>
+<div class="bg-[#0a0a0a] border border-[#262626] rounded-lg p-4">
+<div class="font-label-caps text-label-caps text-neutral-500 mb-1">TARGET RPE</div>
+<div class="font-data-metric text-data-metric text-primary-container">8.0</div>
+</div>
+</div>
+<div class="flex items-center gap-2 mb-4 text-neutral-400">
+<span class="material-symbols-outlined text-[16px]">timer</span>
+<span class="font-label-caps text-label-caps">REST 120S</span>
+</div>
+<p class="font-body-sm text-body-sm text-neutral-400 border-l-2 border-[#262626] pl-3">
+                            Focus on a controlled eccentric phase today. Based on your slight struggle in week 11, we are keeping the weight static but aiming for cleaner reps. Stop 1-2 reps shy of failure on sets 1-3.
+                        </p>
+</div>
+<!-- Exercise Card 2 -->
+<div class="bg-[#141414] border border-[#262626] rounded-xl p-6">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h3 class="font-heading-lg text-heading-lg text-white mb-1">Seated Dumbbell Shoulder Press</h3>
+<p class="font-body-sm text-body-sm text-neutral-500">Target: Anterior/Lateral Deltoid</p>
+</div>
+<div class="flex items-center gap-1 text-neutral-500">
+<span class="material-symbols-outlined text-[18px]">info</span>
+</div>
+</div>
+<!-- Prescription Row -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+<div class="bg-[#0a0a0a] border border-[#262626] rounded-lg p-4">
+<div class="font-label-caps text-label-caps text-neutral-500 mb-1">SETS X REPS</div>
+<div class="font-data-metric text-data-metric text-white">3 x 10</div>
+</div>
+<div class="bg-[#0a0a0a] border border-[#262626] rounded-lg p-4">
+<div class="font-label-caps text-label-caps text-neutral-500 mb-1">WEIGHT</div>
+<div class="font-data-metric text-data-metric text-white">65<span class="text-sm text-neutral-500 ml-1">lbs</span></div>
+</div>
+<div class="bg-[#0a0a0a] border border-[#262626] rounded-lg p-4">
+<div class="font-label-caps text-label-caps text-neutral-500 mb-1">TARGET RPE</div>
+<div class="font-data-metric text-data-metric text-primary-container">8.5</div>
+</div>
+</div>
+<div class="flex items-center gap-2 mb-4 text-neutral-400">
+<span class="material-symbols-outlined text-[16px]">timer</span>
+<span class="font-label-caps text-label-caps">REST 90S</span>
+</div>
+<p class="font-body-sm text-body-sm text-neutral-400 border-l-2 border-[#262626] pl-3">
+                            Keep elbows slightly tucked in front of the body line to protect the AC joint. You hit 60lbs for 12 last week, this is a planned progression.
+                        </p>
+</div>
+<!-- Action Button -->
+<div class="mt-4">
+<button class="w-full bg-primary-container text-black font-heading-md text-heading-md py-4 rounded-lg hover:bg-opacity-90 transition-all font-semibold flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">play_arrow</span>
+                            Start workout
+                        </button>
+</div>
+</div>
+<!-- Right Column (35%) -->
+<div class="lg:col-span-4 flex flex-col gap-6">
+<!-- Today's Focus -->
+<div class="bg-[#141414] border border-[#262626] rounded-xl p-6">
+<div class="flex items-center gap-2 mb-4 border-b border-[#262626] pb-4">
+<span class="material-symbols-outlined text-primary-container">ads_click</span>
+<h3 class="font-heading-md text-heading-md text-white">Today's Focus</h3>
+</div>
+<p class="font-body-base text-body-base text-neutral-400 mb-4">
+                            Hypertrophy block culmination. The goal is to maximize mechanical tension on the chest and shoulders before next week's planned deload. 
+                        </p>
+<div class="space-y-3">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-[16px] text-neutral-500 mt-1">check_circle</span>
+<span class="font-body-sm text-body-sm text-neutral-300">Maintain strict tempo on main lifts.</span>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-[16px] text-neutral-500 mt-1">check_circle</span>
+<span class="font-body-sm text-body-sm text-neutral-300">Log RPE accurately; it dictates next block's starting volume.</span>
+</div>
+</div>
+</div>
+<!-- Warnings -->
+<div class="bg-[#141414] border border-[#262626] rounded-xl p-6 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-[#f59e0b]/50"></div>
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-[#f59e0b]">warning</span>
+<h3 class="font-heading-md text-heading-md text-white">Notes &amp; Alerts</h3>
+</div>
+<p class="font-body-sm text-body-sm text-neutral-400">
+                            You reported slight left shoulder tightness after Thursday's session. If you feel any pinching during the bench press, stop immediately and swap to neutral grip dumbbell press.
+                        </p>
+</div>
+<!-- Confidence Indicator -->
+<div class="bg-[#141414] border border-[#262626] rounded-xl p-6">
+<div class="flex justify-between items-end mb-4">
+<h3 class="font-label-caps text-label-caps text-neutral-500">AI COMPLETION CONFIDENCE</h3>
+<span class="font-data-metric text-data-metric text-white text-[20px]">88%</span>
+</div>
+<div class="w-full bg-[#0a0a0a] rounded-full h-1.5 border border-[#262626]">
+<div class="bg-primary-container h-1.5 rounded-full" style="width: 88%"></div>
+</div>
+<p class="font-body-sm text-body-sm text-neutral-500 mt-3 text-right">Based on recent sleep &amp; recovery metrics.</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full h-16 bg-[#0a0a0a]/90 backdrop-blur-md border-t border-[#262626] z-50 flex justify-around items-center px-2">
+<a class="flex flex-col items-center gap-1 p-2 text-primary-container" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+<span class="text-[10px] font-medium tracking-wide">Today</span>
+</a>
+<a class="flex flex-col items-center gap-1 p-2 text-neutral-500 hover:text-neutral-300" href="#">
+<span class="material-symbols-outlined">trending_up</span>
+<span class="text-[10px] font-medium tracking-wide">Progress</span>
+</a>
+<a class="flex flex-col items-center gap-1 p-2 text-neutral-500 hover:text-neutral-300" href="#">
+<span class="material-symbols-outlined">fitness_center</span>
+<span class="text-[10px] font-medium tracking-wide">Log</span>
+</a>
+<a class="flex flex-col items-center gap-1 p-2 text-neutral-500 hover:text-neutral-300" href="#">
+<span class="material-symbols-outlined">smart_toy</span>
+<span class="text-[10px] font-medium tracking-wide">Coach</span>
+</a>
+</nav>
+</body></html>
