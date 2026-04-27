@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { Loader2, Play } from 'lucide-react';
+import { useUser } from '../contexts/UserContext';
 
 interface Exercise {
   name: string;
@@ -26,15 +27,18 @@ interface Recommendation {
 }
 
 export default function TodayScreen() {
+  const { activeUser } = useUser();
   const [rec, setRec] = useState<Recommendation | null>(null);
   const [loading, setLoading] = useState(true);
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   useEffect(() => {
-    api.getRecommend('Push Day')
+    if (!activeUser) return;
+    setLoading(true);
+    api.getRecommend('Push Day', activeUser.id)
       .then((data) => { setRec(data); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [activeUser]);
 
   if (loading) {
     return (

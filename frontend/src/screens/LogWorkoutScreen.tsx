@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { Plus, X, Search } from 'lucide-react';
+import { useUser } from '../contexts/UserContext';
 
 export default function LogWorkoutScreen() {
+  const { activeUser } = useUser();
   const [type, setType] = useState('Push');
   const [exercises, setExercises] = useState<{ name: string; side: string; sets: any[] }[]>([]);
   const [search, setSearch] = useState('');
@@ -31,6 +33,7 @@ export default function LogWorkoutScreen() {
   };
 
   async function save() {
+    if (!activeUser) return;
     const date = new Date().toISOString().split('T')[0];
     await api.logWorkout({
       date, workout_type: type + ' Day',
@@ -45,7 +48,7 @@ export default function LogWorkoutScreen() {
           notes: s.notes || null, is_warmup: s.is_warmup
         }))
       }))
-    });
+    }, activeUser.id);
     alert('Workout saved!'); setExercises([]);
   }
 

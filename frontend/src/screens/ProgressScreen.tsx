@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { Loader2, Search } from 'lucide-react';
+import { useUser } from '../contexts/UserContext';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   BarChart, Bar
@@ -30,6 +31,7 @@ interface Asymmetry {
 }
 
 export default function ProgressScreen() {
+  const { activeUser } = useUser();
   const [tab, setTab] = useState<'exercises' | 'volume' | 'asymmetries'>('exercises');
   const [exercises, setExercises] = useState<ExerciseMetric[]>([]);
   const [volume, setVolume] = useState<any[]>([]);
@@ -39,10 +41,12 @@ export default function ProgressScreen() {
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
+    if (!activeUser) return;
+    setLoading(true);
     Promise.all([
-      api.getExerciseMetrics(),
-      api.getVolumeMetrics(),
-      api.getAsymmetryMetrics()
+      api.getExerciseMetrics(activeUser.id),
+      api.getVolumeMetrics(activeUser.id),
+      api.getAsymmetryMetrics(activeUser.id)
     ]).then(([e, v, a]) => {
       setExercises(e);
       setVolume(v);
@@ -50,7 +54,7 @@ export default function ProgressScreen() {
       if (e.length > 0) setSelectedEx(e[0].exercise);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  }, [activeUser]);
 
   if (loading) {
     return (

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { api } from '../api';
 import { Bot, Utensils, Dumbbell, BarChart3, Bed, ArrowUp, Paperclip } from 'lucide-react';
+import { useUser } from '../contexts/UserContext';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -15,6 +16,7 @@ const suggestions = [
 ];
 
 export default function AskCoachScreen() {
+  const { activeUser } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,7 @@ export default function AskCoachScreen() {
 
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }));
-      const res = await api.chat(text, history);
+      const res = await api.chat(text, history, activeUser?.id);
       setMessages(prev => [...prev, { role: 'assistant', content: res.reply }]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I had trouble connecting. Please try again.' }]);

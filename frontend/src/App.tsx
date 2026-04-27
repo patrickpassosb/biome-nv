@@ -4,8 +4,16 @@ import TodayScreen from './screens/TodayScreen';
 import ProgressScreen from './screens/ProgressScreen';
 import LogWorkoutScreen from './screens/LogWorkoutScreen';
 import AskCoachScreen from './screens/AskCoachScreen';
+import LoginScreen from './screens/LoginScreen';
+import { useUser } from './contexts/UserContext';
 
 function App() {
+  const { activeUser } = useUser();
+
+  if (!activeUser) {
+    return <LoginScreen />;
+  }
+
   return (
     <div className="flex min-h-screen bg-background text-on-surface">
       <Sidebar />
