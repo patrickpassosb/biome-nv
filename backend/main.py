@@ -1,15 +1,16 @@
 import os, csv, io, json, uvicorn
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+import httpx
 
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+BACKBOARD_API_KEY = os.getenv("BACKBOARD_API_KEY", "")
 USE_SQLITE_FALLBACK = os.getenv("USE_SQLITE_FALLBACK", "true").lower() == "true"
 ORACLE_USER = os.getenv("ORACLE_USER", "")
 ORACLE_PASSWORD = os.getenv("ORACLE_PASSWORD", "")
@@ -130,10 +131,207 @@ class DB:
 db = DB()
 
 
+class BackboardClient:
+    """Thin wrapper over the Backboard REST API.
+
+    See https://docs.backboard.io/ and the cookbook at
+    github.com/Backboard-io/backboard_io_cookbook for the canonical patterns.
+    """
+
+    def __init__(self, api_key: str, base_url: str = "https://app.backboard.io/api"):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
+        self._client = httpx.Client(timeout=60.0)
+
+    def list_assistants(self) -> List[Dict[str, Any]]:
+        resp = self._client.get(f"{self.base_url}/assistants", headers=self.headers)
+        resp.raise_for_status()
+        body = resp.json()
+        if isinstance(body, list):
+            return body
+        return body.get("assistants") or body.get("data") or []
+
+    def create_assistant(self, name: str, system_prompt: str, tools: Optional[list] = None) -> str:
+        payload: Dict[str, Any] = {"name": name, "system_prompt": system_prompt}
+        if tools:
+            payload["tools"] = tools
+        resp = self._client.post(f"{self.base_url}/assistants", json=payload, headers=self.headers)
+        resp.raise_for_status()
+        return resp.json()["assistant_id"]
+
+    def get_or_create_assistant(self, name: str, system_prompt: str, tools: Optional[list] = None) -> str:
+        # Cookbook pattern: lookup by name, create if missing. Never hardcode IDs —
+        # restarts would otherwise spawn a new assistant on every boot.
+        for a in self.list_assistants():
+            if a.get("name") == name:
+                return a.get("assistant_id") or a.get("id")
+        return self.create_assistant(name=name, system_prompt=system_prompt, tools=tools)
+
+    def create_thread(self, assistant_id: str) -> str:
+        resp = self._client.post(
+            f"{self.base_url}/assistants/{assistant_id}/threads",
+            json={},
+            headers=self.headers,
+        )
+        resp.raise_for_status()
+        return resp.json()["thread_id"]
+
+    def add_message(
+        self,
+        thread_id: str,
+        content: str,
+        memory: str = "Auto",
+        stream: bool = False,
+    ) -> Dict[str, Any]:
+        resp = self._client.post(
+            f"{self.base_url}/threads/{thread_id}/messages",
+            json={"content": content, "stream": stream, "memory": memory},
+            headers=self.headers,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def submit_tool_outputs(
+        self,
+        thread_id: str,
+        run_id: str,
+        tool_outputs: list,
+    ) -> Dict[str, Any]:
+        resp = self._client.post(
+            f"{self.base_url}/threads/{thread_id}/runs/{run_id}/submit_tool_outputs",
+            json={"tool_outputs": tool_outputs, "stream": False},
+            headers=self.headers,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+bb_client: Optional[BackboardClient] = (
+    BackboardClient(api_key=BACKBOARD_API_KEY) if BACKBOARD_API_KEY else None
+)
+
+# Per-user assistant ids, cached to avoid repeated list_assistants() calls.
+# Cookbook critical rule: each user gets their own assistant so memory="Auto"
+# doesn't leak facts between users. The shared "_recommender" key is reserved
+# for the no-memory recommendation assistant.
+USER_ASSISTANTS: Dict[str, str] = {}
+# user_id -> persistent chat thread_id (one ongoing conversation per user)
+USER_CHAT_THREADS: Dict[str, str] = {}
+
+
+CHAT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_exercise_metrics",
+            "description": "Fetch the user's per-exercise metrics: load progression, RPE trends, session counts (last 8 weeks).",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_volume_metrics",
+            "description": "Fetch weekly training volume grouped by muscle (last 12 weeks).",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_asymmetry_metrics",
+            "description": "Fetch left/right asymmetries on unilateral exercises (last 4 weeks).",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+]
+
+
+def _chat_system_prompt() -> str:
+    return (
+        "You are Biome, a personal AI strength coach. Speak in English, cite real numbers "
+        "from the data when relevant, and give actionable advice. Use the available tools "
+        "(get_exercise_metrics, get_volume_metrics, get_asymmetry_metrics) to fetch the "
+        "user's training data on demand instead of asking the user for it. "
+        f"User goals: {json.dumps(USER_GOALS)}"
+    )
+
+
+def _rec_system_prompt() -> str:
+    return """You are Biome, a personal AI strength coach. You receive STRUCTURED METRICS about a user's training and output a single session plan as JSON.
+PRINCIPLES:
+- Progressive overload drives adaptation
+- Hypertrophy: 6-15 reps, RPE 7-9, 10-20 sets per muscle per week
+- Warm-ups don't count toward working volume
+- RPE rising on stable load = accumulating fatigue, may need deload
+- Asymmetries >20% on unilateral lifts warrant correction work
+- Injuries override progression — work around, never through
+USER CONTEXT:
+The user is underweight and gaining weight is health-relevant, not aesthetic.
+- Prioritize volume accumulation over intensity PRs
+- Recommend adding a set when an exercise is progressing comfortably
+- When weight gain appears slow despite good training, explicitly note caloric intake is usually limiting
+- Respect current exercise selection — guide progression, don't rewrite the program
+
+Output ONLY valid JSON matching this exact schema (no markdown fences, no commentary):
+{"session_plan":{"workout_type":string,"estimated_duration_minutes":number,"exercises":[{"name":string,"order":number,"sets":number,"target_reps":string,"target_weight_kg":number|null,"target_machine_level":number|null,"target_rpe":string,"rest_seconds":number,"rationale":string}]},"overall_reasoning":string,"warnings":[string],"confidence":"high"|"medium"|"low"}"""
+
+
+def _get_user_assistant(user_id: str) -> str:
+    if user_id in USER_ASSISTANTS:
+        return USER_ASSISTANTS[user_id]
+    aid = bb_client.get_or_create_assistant(
+        name=f"biome-user-{user_id}",
+        system_prompt=_chat_system_prompt(),
+        tools=CHAT_TOOLS,
+    )
+    USER_ASSISTANTS[user_id] = aid
+    return aid
+
+
+def _get_recommender_assistant() -> str:
+    if "_recommender" in USER_ASSISTANTS:
+        return USER_ASSISTANTS["_recommender"]
+    aid = bb_client.get_or_create_assistant(
+        name="biome-recommender",
+        system_prompt=_rec_system_prompt(),
+        tools=None,
+    )
+    USER_ASSISTANTS["_recommender"] = aid
+    return aid
+
+
+def _parse_tool_args(tool_call: Dict[str, Any]) -> Dict[str, Any]:
+    fn = tool_call.get("function", {})
+    raw = fn.get("parsed_arguments")
+    if raw is None:
+        raw = fn.get("arguments")
+    if raw is None or raw == "":
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    try:
+        return json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+
+
+def _dispatch_tool(name: str, args: Dict[str, Any]) -> Any:
+    if name == "get_exercise_metrics":
+        return get_exercise_metrics()
+    if name == "get_volume_metrics":
+        return get_volume_metrics()
+    if name == "get_asymmetry_metrics":
+        return get_asymmetry_metrics()
+    return {"error": f"Unknown tool: {name}"}
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.connect()
     db.setup()
+    if not BACKBOARD_API_KEY:
+        print("Warning: BACKBOARD_API_KEY not set. /chat and /recommend will return a configuration error.")
     yield
     if db.conn:
         db.conn.close()
@@ -150,7 +348,6 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    history: List[ChatMessage] = []
 
 
 class LogSet(BaseModel):
@@ -335,25 +532,6 @@ def get_asymmetry_metrics():
     return result
 
 
-# ------------------------------------------------------------------
-# GROQ helpers
-# ------------------------------------------------------------------
-
-def _groq_chat(messages: list, model: str = "llama-3.3-70b-versatile") -> str:
-    if not GROQ_API_KEY:
-        return None
-    try:
-        import groq
-        client = groq.Groq(api_key=GROQ_API_KEY)
-        resp = client.chat.completions.create(
-            model=model, messages=messages, temperature=0.7, max_tokens=2048
-        )
-        return resp.choices[0].message.content
-    except Exception as e:
-        print(f"GROQ error: {e}")
-        return None
-
-
 def _is_in_workout_type(exercise: str, workout_type: str) -> bool:
     ex = exercise.lower()
     wt = workout_type.lower()
@@ -435,86 +613,86 @@ def get_recommendation(workout_type: str = "Push Day"):
         "current_week_volume": volume[-1] if volume else {}
     }
 
-    system_prompt = f"""You are Biome, a personal AI strength coach. You receive STRUCTURED METRICS about the user's training.
-PRINCIPLES:
-- Progressive overload drives adaptation
-- Hypertrophy: 6-15 reps, RPE 7-9, 10-20 sets per muscle per week
-- Warm-ups don't count toward working volume
-- RPE rising on stable load = accumulating fatigue, may need deload
-- Asymmetries >20% on unilateral lifts warrant correction work
-- Injuries override progression — work around, never through
-USER CONTEXT:
-The user is underweight and gaining weight is health-relevant, not aesthetic.
-- Prioritize volume accumulation over intensity PRs
-- Recommend adding a set when an exercise is progressing comfortably
-- When weight gain appears slow despite good training, explicitly note caloric intake is usually limiting
-- Respect current exercise selection — guide progression, don't rewrite the program
+    user_message = f"Workout type: {workout_type}\n\nContext:\n{json.dumps(context, indent=2)}"
 
-Output ONLY valid JSON matching this exact schema (no markdown fences, no commentary):
-{{"session_plan":{{"workout_type":string,"estimated_duration_minutes":number,"exercises":[{{"name":string,"order":number,"sets":number,"target_reps":string,"target_weight_kg":number|null,"target_machine_level":number|null,"target_rpe":string,"rest_seconds":number,"rationale":string}}]}},"overall_reasoning":string,"warnings":[string],"confidence":"high"|"medium"|"low"}}"""
-
-    user_prompt = f"Workout type: {workout_type}\n\nContext:\n{json.dumps(context, indent=2)}"
-
-    content = _groq_chat([
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt}
-    ])
-    if not content:
+    if not bb_client:
         return _fallback_recommendation(workout_type)
+
+    # Recommendations don't need cross-thread memory, so we use a fresh thread
+    # on a shared no-memory assistant. memory="Off" keeps the rec context out
+    # of the user's chat memory.
     try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        # Retry once
-        content2 = _groq_chat([
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt + "\n\nYour last response wasn't valid JSON, try again. Output only JSON."}
-        ])
-        if content2:
+        assistant_id = _get_recommender_assistant()
+        thread_id = bb_client.create_thread(assistant_id)
+        res = bb_client.add_message(thread_id, user_message, memory="Off")
+
+        content = res.get("content")
+        if content:
             try:
-                return json.loads(content2)
+                return json.loads(content)
             except json.JSONDecodeError:
                 pass
+
+        # Single retry — the LLM occasionally wraps JSON in markdown or trailing prose.
+        retry = bb_client.add_message(
+            thread_id,
+            "Your last response wasn't valid JSON. Re-output ONLY the JSON object — "
+            "no markdown fences, no commentary.",
+            memory="Off",
+        )
+        try:
+            return json.loads(retry.get("content") or "")
+        except json.JSONDecodeError:
+            return _fallback_recommendation(workout_type)
+    except httpx.HTTPError as e:
+        print(f"Recommend error: {e}")
         return _fallback_recommendation(workout_type)
 
 
-# ------------------------------------------------------------------
-# Chat endpoint
-# ------------------------------------------------------------------
-
 @app.post("/chat")
-def chat_endpoint(req: ChatRequest):
-    metrics = get_exercise_metrics()
-    asymmetry = get_asymmetry_metrics()
-    volume = get_volume_metrics()
+def chat_endpoint(req: ChatRequest, x_user_id: str = Header(default="default")):
+    if not bb_client:
+        return {"reply": "Backboard API is not configured. Set BACKBOARD_API_KEY in your environment."}
 
-    sql = """SELECT session_date, workout_type, exercise_name, reps,
-        COALESCE(weight_kg, machine_level * 2, 1) as load_val, rpe, notes
-        FROM workout_sets ORDER BY session_date DESC LIMIT 30"""
-    if db.driver == "oracle":
-        sql = sql.replace("LIMIT 30", "FETCH FIRST 30 ROWS ONLY")
-    recent = db.query(sql)
+    try:
+        assistant_id = _get_user_assistant(x_user_id)
+    except httpx.HTTPError as e:
+        print(f"Failed to provision assistant for {x_user_id}: {e}")
+        return {"reply": "I'm having trouble reaching the AI service. Please try again later."}
 
-    context = {
-        "user_goals": USER_GOALS,
-        "exercise_status": metrics,
-        "asymmetries": asymmetry,
-        "current_week_volume": volume[-1] if volume else {},
-        "recent_sets": recent
-    }
+    thread_id = USER_CHAT_THREADS.get(x_user_id)
+    if not thread_id:
+        thread_id = bb_client.create_thread(assistant_id)
+        USER_CHAT_THREADS[x_user_id] = thread_id
 
-    system_msg = f"""You are Biome, a personal AI strength coach with access to the user's training data.
-You speak in English, cite real numbers from the data, and give actionable advice.
-Current training context:\n{json.dumps(context, indent=2)}"""
+    try:
+        res = bb_client.add_message(thread_id, req.message, memory="Auto")
 
-    messages = [{"role": "system", "content": system_msg}]
-    for h in req.history:
-        messages.append({"role": h.role, "content": h.content})
-    messages.append({"role": "user", "content": req.message})
+        # Tool-calling loop — see Backboard cookbook recipe 03.
+        # Cap iterations so a buggy LLM can't loop us forever.
+        max_iterations = 5
+        while (
+            res.get("status") == "REQUIRES_ACTION"
+            and res.get("tool_calls")
+            and max_iterations > 0
+        ):
+            max_iterations -= 1
+            tool_outputs = []
+            for tc in res["tool_calls"]:
+                fn_name = tc.get("function", {}).get("name", "")
+                args = _parse_tool_args(tc)
+                print(f"[Tool] {fn_name}({args})")
+                result = _dispatch_tool(fn_name, args)
+                tool_outputs.append({
+                    "tool_call_id": tc.get("id"),
+                    "output": json.dumps(result),
+                })
+            res = bb_client.submit_tool_outputs(thread_id, res.get("run_id"), tool_outputs)
 
-    content = _groq_chat(messages)
-    if not content:
+        return {"reply": res.get("content") or "I received an empty response from the AI."}
+    except httpx.HTTPError as e:
+        print(f"Chat error: {e}")
         return {"reply": "I'm having trouble connecting to the AI service. Please try again later."}
-    return {"reply": content}
 
 
 # ------------------------------------------------------------------

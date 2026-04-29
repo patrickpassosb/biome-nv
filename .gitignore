@@ -1,5 +1,7 @@
 # Project-specific
 .omc
+.omx
+.codex
 data/
 frontend/public/gym_data*.csv
 

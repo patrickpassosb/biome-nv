@@ -26,10 +26,10 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   }, userId),
-  chat: (message: string, history: { role: string; content: string }[], userId?: string) =>
+  chat: (message: string, userId?: string) =>
     fetchJson('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history })
+      body: JSON.stringify({ message })
     }, userId),
 };

@@ -34,8 +34,7 @@ export default function AskCoachScreen() {
     setLoading(true);
 
     try {
-      const history = messages.map(m => ({ role: m.role, content: m.content }));
-      const res = await api.chat(text, history, activeUser?.id);
+      const res = await api.chat(text, activeUser?.id);
       setMessages(prev => [...prev, { role: 'assistant', content: res.reply }]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I had trouble connecting. Please try again.' }]);
