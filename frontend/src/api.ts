@@ -1,3 +1,11 @@
+export interface Profile {
+  id: string;
+  name: string;
+  fitness_goal: string | null;
+  goals_json: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function fetchJson(path: string, opts?: RequestInit, userId?: string) {
@@ -11,25 +19,43 @@ async function fetchJson(path: string, opts?: RequestInit, userId?: string) {
 }
 
 export const api = {
+  // Profiles — no user header; these are the entry point for the app.
+  getProfiles: (): Promise<Profile[]> => fetchJson('/profiles'),
+  createProfile: (body: {
+    name: string;
+    fitness_goal?: string;
+    goals_json?: Record<string, unknown>;
+  }): Promise<Profile> =>
+    fetchJson('/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  deleteProfile: (id: string) =>
+    fetchJson(`/profiles/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // Authenticated routes — require X-User-ID header.
   importCsv: (file: File, userId?: string) => {
     const form = new FormData();
     form.append('file', file);
     return fetchJson('/import', { method: 'POST', body: form }, userId);
   },
   getWorkouts: (userId?: string) => fetchJson('/workouts', undefined, userId),
-  getRecommend: (type: string, userId?: string) => fetchJson(`/recommend?workout_type=${encodeURIComponent(type)}`, undefined, userId),
+  getRecommend: (type: string, userId?: string) =>
+    fetchJson(`/recommend?workout_type=${encodeURIComponent(type)}`, undefined, userId),
   getExerciseMetrics: (userId?: string) => fetchJson('/metrics/exercises', undefined, userId),
   getVolumeMetrics: (userId?: string) => fetchJson('/metrics/volume', undefined, userId),
   getAsymmetryMetrics: (userId?: string) => fetchJson('/metrics/asymmetry', undefined, userId),
-  logWorkout: (body: unknown, userId?: string) => fetchJson('/workouts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  }, userId),
+  logWorkout: (body: unknown, userId?: string) =>
+    fetchJson('/workouts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }, userId),
   chat: (message: string, userId?: string) =>
     fetchJson('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message })
+      body: JSON.stringify({ message }),
     }, userId),
 };

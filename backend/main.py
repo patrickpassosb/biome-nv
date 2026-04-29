@@ -1,8 +1,8 @@
-import os, csv, io, json, uvicorn
+import os, csv, io, json, uuid, uvicorn
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, Header
+from fastapi import FastAPI, UploadFile, File, Header, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -17,7 +17,9 @@ ORACLE_PASSWORD = os.getenv("ORACLE_PASSWORD", "")
 ORACLE_DSN = os.getenv("ORACLE_DSN", "")
 ORACLE_WALLET_PASSWORD = os.getenv("ORACLE_WALLET_PASSWORD", "")
 
-USER_GOALS = {
+# Used to seed the first profile on a fresh install. Each profile then carries
+# its own goals JSON in the profiles table — this constant is only the default.
+DEFAULT_GOALS_SEED = {
     "objective": "muscle_and_weight_gain",
     "medical_context": "Underweight, weight gain is health-relevant",
     "training_days_per_week": 4,
@@ -72,38 +74,109 @@ class DB:
                 raise
 
     def setup(self):
+        # Idempotent: never drops existing data. Migrates legacy single-tenant
+        # DBs by adding the user_id column when missing.
         c = self.conn.cursor()
         if self.driver == "oracle":
-            c.execute("BEGIN EXECUTE IMMEDIATE 'DROP TABLE workout_sets'; EXCEPTION WHEN OTHERS THEN NULL; END;")
-            c.execute("""CREATE TABLE workout_sets (
-                id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                session_date DATE NOT NULL, workout_type VARCHAR2(50) NOT NULL,
-                exercise_name VARCHAR2(100) NOT NULL, exercise_canonical VARCHAR2(100) NOT NULL,
-                side VARCHAR2(10), set_number NUMBER, reps NUMBER, duration_seconds NUMBER,
-                weight_kg NUMBER, machine_level NUMBER, is_warmup NUMBER(1) DEFAULT 0,
-                rpe NUMBER, notes VARCHAR2(500))""")
+            c.execute("BEGIN EXECUTE IMMEDIATE 'CREATE TABLE profiles ("
+                      "id VARCHAR2(64) PRIMARY KEY, name VARCHAR2(100) NOT NULL, "
+                      "fitness_goal VARCHAR2(200), goals_json CLOB, "
+                      "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)'; "
+                      "EXCEPTION WHEN OTHERS THEN NULL; END;")
+            c.execute("BEGIN EXECUTE IMMEDIATE 'CREATE TABLE workout_sets ("
+                      "id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, "
+                      "user_id VARCHAR2(64), session_date DATE NOT NULL, "
+                      "workout_type VARCHAR2(50) NOT NULL, exercise_name VARCHAR2(100) NOT NULL, "
+                      "exercise_canonical VARCHAR2(100) NOT NULL, side VARCHAR2(10), "
+                      "set_number NUMBER, reps NUMBER, duration_seconds NUMBER, "
+                      "weight_kg NUMBER, machine_level NUMBER, is_warmup NUMBER(1) DEFAULT 0, "
+                      "rpe NUMBER, notes VARCHAR2(500))'; "
+                      "EXCEPTION WHEN OTHERS THEN NULL; END;")
+            c.execute("BEGIN EXECUTE IMMEDIATE 'ALTER TABLE workout_sets ADD (user_id VARCHAR2(64))'; "
+                      "EXCEPTION WHEN OTHERS THEN NULL; END;")
         else:
-            c.execute("DROP TABLE IF EXISTS workout_sets")
-            c.execute("""CREATE TABLE workout_sets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, session_date TEXT NOT NULL,
-                workout_type TEXT NOT NULL, exercise_name TEXT NOT NULL,
-                exercise_canonical TEXT NOT NULL, side TEXT, set_number INTEGER,
-                reps INTEGER, duration_seconds INTEGER, weight_kg REAL,
-                machine_level INTEGER, is_warmup INTEGER DEFAULT 0, rpe REAL, notes TEXT)""")
+            c.execute("""CREATE TABLE IF NOT EXISTS profiles (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                fitness_goal TEXT,
+                goals_json TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )""")
+            c.execute("""CREATE TABLE IF NOT EXISTS workout_sets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT,
+                session_date TEXT NOT NULL,
+                workout_type TEXT NOT NULL,
+                exercise_name TEXT NOT NULL,
+                exercise_canonical TEXT NOT NULL,
+                side TEXT,
+                set_number INTEGER,
+                reps INTEGER,
+                duration_seconds INTEGER,
+                weight_kg REAL,
+                machine_level INTEGER,
+                is_warmup INTEGER DEFAULT 0,
+                rpe REAL,
+                notes TEXT
+            )""")
+            cols = {row[1] for row in c.execute("PRAGMA table_info(workout_sets)").fetchall()}
+            if "user_id" not in cols:
+                c.execute("ALTER TABLE workout_sets ADD COLUMN user_id TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS ix_workout_sets_user_id ON workout_sets(user_id)")
         self.conn.commit()
 
-    def insert(self, rows):
-        c = self.conn.cursor()
-        sql = """INSERT INTO workout_sets
-            (session_date, workout_type, exercise_name, exercise_canonical, side, set_number,
-             reps, duration_seconds, weight_kg, machine_level, is_warmup, rpe, notes)
-            VALUES ({})""".format(", ".join(["?"]*13) if self.driver=="sqlite" else ", ".join([":"+str(i+1) for i in range(13)])
+    def seed_default_profile(self) -> Optional[str]:
+        """On a fresh install, create a 'Patrick' profile and backfill any orphaned
+        workout_sets to him. If a profile already exists, just backfill orphans
+        to the first profile. Returns the profile id, or None if no work was done.
+        """
+        first = self.query(
+            "SELECT id FROM profiles ORDER BY created_at LIMIT 1" if self.driver == "sqlite"
+            else "SELECT id FROM profiles ORDER BY created_at FETCH FIRST 1 ROWS ONLY"
         )
+        if first:
+            target_id = first[0]["id"]
+        else:
+            target_id = str(uuid.uuid4())
+            self.execute(
+                "INSERT INTO profiles (id, name, fitness_goal, goals_json) VALUES (?, ?, ?, ?)"
+                if self.driver == "sqlite"
+                else "INSERT INTO profiles (id, name, fitness_goal, goals_json) VALUES (:1, :2, :3, :4)",
+                (target_id, "Patrick", "Building muscle · weight gain",
+                 json.dumps(DEFAULT_GOALS_SEED)),
+            )
+            print(f"Seeded default profile: Patrick ({target_id})")
+
+        # Always backfill orphaned rows so legacy data attaches to the first profile.
+        self.execute(
+            "UPDATE workout_sets SET user_id = ? WHERE user_id IS NULL"
+            if self.driver == "sqlite"
+            else "UPDATE workout_sets SET user_id = :1 WHERE user_id IS NULL",
+            (target_id,),
+        )
+        return target_id
+
+    def insert(self, rows, user_id: str):
+        # Each row is (session_date, workout_type, exercise_name, exercise_canonical,
+        # side, set_number, reps, duration_seconds, weight_kg, machine_level,
+        # is_warmup, rpe, notes) — 13 fields. We prepend user_id for 14 total.
+        c = self.conn.cursor()
+        rows_with_user = [(user_id, *r) for r in rows]
+        placeholders = (
+            ", ".join(["?"] * 14)
+            if self.driver == "sqlite"
+            else ", ".join(f":{i + 1}" for i in range(14))
+        )
+        sql = f"""INSERT INTO workout_sets
+            (user_id, session_date, workout_type, exercise_name, exercise_canonical,
+             side, set_number, reps, duration_seconds, weight_kg, machine_level,
+             is_warmup, rpe, notes)
+            VALUES ({placeholders})"""
         if self.driver == "oracle":
-            for r in rows:
+            for r in rows_with_user:
                 c.execute(sql, r)
         else:
-            c.executemany(sql, rows)
+            c.executemany(sql, rows_with_user)
         self.conn.commit()
 
     def query(self, sql, params=None):
@@ -248,13 +321,27 @@ CHAT_TOOLS = [
 ]
 
 
-def _chat_system_prompt() -> str:
+def _load_user_goals(user_id: str) -> Dict[str, Any]:
+    rows = db.query(
+        "SELECT goals_json FROM profiles WHERE id = ?" if db.driver == "sqlite"
+        else "SELECT goals_json FROM profiles WHERE id = :1",
+        (user_id,),
+    )
+    if not rows or not rows[0].get("goals_json"):
+        return DEFAULT_GOALS_SEED
+    try:
+        return json.loads(rows[0]["goals_json"])
+    except (TypeError, json.JSONDecodeError):
+        return DEFAULT_GOALS_SEED
+
+
+def _chat_system_prompt(goals: Dict[str, Any]) -> str:
     return (
         "You are Biome, a personal AI strength coach. Speak in English, cite real numbers "
         "from the data when relevant, and give actionable advice. Use the available tools "
         "(get_exercise_metrics, get_volume_metrics, get_asymmetry_metrics) to fetch the "
         "user's training data on demand instead of asking the user for it. "
-        f"User goals: {json.dumps(USER_GOALS)}"
+        f"User goals: {json.dumps(goals)}"
     )
 
 
@@ -281,9 +368,10 @@ Output ONLY valid JSON matching this exact schema (no markdown fences, no commen
 def _get_user_assistant(user_id: str) -> str:
     if user_id in USER_ASSISTANTS:
         return USER_ASSISTANTS[user_id]
+    goals = _load_user_goals(user_id)
     aid = bb_client.get_or_create_assistant(
         name=f"biome-user-{user_id}",
-        system_prompt=_chat_system_prompt(),
+        system_prompt=_chat_system_prompt(goals),
         tools=CHAT_TOOLS,
     )
     USER_ASSISTANTS[user_id] = aid
@@ -317,19 +405,20 @@ def _parse_tool_args(tool_call: Dict[str, Any]) -> Dict[str, Any]:
         return {}
 
 
-def _dispatch_tool(name: str, args: Dict[str, Any]) -> Any:
+def _dispatch_tool(name: str, args: Dict[str, Any], user_id: str) -> Any:
     if name == "get_exercise_metrics":
-        return get_exercise_metrics()
+        return _exercise_metrics(user_id)
     if name == "get_volume_metrics":
-        return get_volume_metrics()
+        return _volume_metrics(user_id)
     if name == "get_asymmetry_metrics":
-        return get_asymmetry_metrics()
+        return _asymmetry_metrics(user_id)
     return {"error": f"Unknown tool: {name}"}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.connect()
     db.setup()
+    db.seed_default_profile()
     if not BACKBOARD_API_KEY:
         print("Warning: BACKBOARD_API_KEY not set. /chat and /recommend will return a configuration error.")
     yield
@@ -372,6 +461,110 @@ class LogWorkout(BaseModel):
     exercises: List[LogExercise]
 
 
+class ProfileCreate(BaseModel):
+    name: str
+    fitness_goal: Optional[str] = None
+    goals_json: Optional[Dict[str, Any]] = None
+
+
+class Profile(BaseModel):
+    id: str
+    name: str
+    fitness_goal: Optional[str] = None
+    goals_json: Optional[Dict[str, Any]] = None
+    created_at: Optional[str] = None
+
+
+# ------------------------------------------------------------------
+# Dependencies
+# ------------------------------------------------------------------
+
+def require_user_id(x_user_id: Optional[str] = Header(default=None)) -> str:
+    """Extract and validate the active user id from the X-User-ID request header."""
+    if not x_user_id or not x_user_id.strip():
+        raise HTTPException(status_code=400, detail="X-User-ID header required")
+    rows = db.query(
+        "SELECT id FROM profiles WHERE id = ?" if db.driver == "sqlite"
+        else "SELECT id FROM profiles WHERE id = :1",
+        (x_user_id,),
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"Profile {x_user_id} not found")
+    return x_user_id
+
+
+# ------------------------------------------------------------------
+# Profile routes (no auth — these are the entry point for the app)
+# ------------------------------------------------------------------
+
+def _profile_row_to_dict(row: Dict[str, Any]) -> Dict[str, Any]:
+    goals_raw = row.get("goals_json")
+    goals = None
+    if goals_raw:
+        try:
+            goals = json.loads(goals_raw)
+        except (TypeError, json.JSONDecodeError):
+            goals = None
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "fitness_goal": row.get("fitness_goal"),
+        "goals_json": goals,
+        "created_at": str(row.get("created_at")) if row.get("created_at") else None,
+    }
+
+
+@app.get("/profiles")
+def list_profiles():
+    rows = db.query("SELECT id, name, fitness_goal, goals_json, created_at FROM profiles ORDER BY created_at")
+    return [_profile_row_to_dict(r) for r in rows]
+
+
+@app.post("/profiles")
+def create_profile(body: ProfileCreate):
+    pid = str(uuid.uuid4())
+    goals_json = json.dumps(body.goals_json) if body.goals_json else json.dumps(DEFAULT_GOALS_SEED)
+    db.execute(
+        "INSERT INTO profiles (id, name, fitness_goal, goals_json) VALUES (?, ?, ?, ?)"
+        if db.driver == "sqlite"
+        else "INSERT INTO profiles (id, name, fitness_goal, goals_json) VALUES (:1, :2, :3, :4)",
+        (pid, body.name, body.fitness_goal, goals_json),
+    )
+    rows = db.query(
+        "SELECT id, name, fitness_goal, goals_json, created_at FROM profiles WHERE id = ?"
+        if db.driver == "sqlite"
+        else "SELECT id, name, fitness_goal, goals_json, created_at FROM profiles WHERE id = :1",
+        (pid,),
+    )
+    return _profile_row_to_dict(rows[0])
+
+
+@app.delete("/profiles/{profile_id}")
+def delete_profile(profile_id: str):
+    rows = db.query(
+        "SELECT id FROM profiles WHERE id = ?" if db.driver == "sqlite"
+        else "SELECT id FROM profiles WHERE id = :1",
+        (profile_id,),
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"Profile {profile_id} not found")
+    db.execute(
+        "DELETE FROM workout_sets WHERE user_id = ?" if db.driver == "sqlite"
+        else "DELETE FROM workout_sets WHERE user_id = :1",
+        (profile_id,),
+    )
+    db.execute(
+        "DELETE FROM profiles WHERE id = ?" if db.driver == "sqlite"
+        else "DELETE FROM profiles WHERE id = :1",
+        (profile_id,),
+    )
+    # Drop any cached assistant/thread for this user — Backboard-side resources
+    # remain (the assistant lives there) but our local cache should not point at them.
+    USER_ASSISTANTS.pop(profile_id, None)
+    USER_CHAT_THREADS.pop(profile_id, None)
+    return {"deleted": profile_id}
+
+
 def _to_int(val):
     try:
         return int(float(val.strip())) if val and str(val).strip() else None
@@ -387,7 +580,7 @@ def _to_float(val):
 
 
 @app.post("/import")
-async def import_csv(file: UploadFile = File(...)):
+async def import_csv(file: UploadFile = File(...), user_id: str = Depends(require_user_id)):
     text = (await file.read()).decode("utf-8")
     reader = csv.DictReader(io.StringIO(text))
     rows = []
@@ -415,41 +608,47 @@ async def import_csv(file: UploadFile = File(...)):
             _to_float(rec.get("RPE")),
             rec.get("Notes", "").strip() or None
         ))
-    db.insert(rows)
+    db.insert(rows, user_id)
     return {"row_count": len(rows)}
 
 
 @app.get("/workouts")
-def get_workouts():
-    return db.query("""SELECT session_date, workout_type, exercise_name, side, set_number,
+def get_workouts(user_id: str = Depends(require_user_id)):
+    sql = ("""SELECT session_date, workout_type, exercise_name, side, set_number,
         reps, duration_seconds, weight_kg, machine_level, is_warmup, rpe, notes
-        FROM workout_sets ORDER BY session_date DESC, workout_type, exercise_name, set_number""")
+        FROM workout_sets WHERE user_id = ?
+        ORDER BY session_date DESC, workout_type, exercise_name, set_number"""
+        if db.driver == "sqlite"
+        else """SELECT session_date, workout_type, exercise_name, side, set_number,
+        reps, duration_seconds, weight_kg, machine_level, is_warmup, rpe, notes
+        FROM workout_sets WHERE user_id = :1
+        ORDER BY session_date DESC, workout_type, exercise_name, set_number""")
+    return db.query(sql, (user_id,))
 
 
 # ------------------------------------------------------------------
 # Metrics
 # ------------------------------------------------------------------
 
-@app.get("/metrics/exercises")
-def get_exercise_metrics():
+def _exercise_metrics(user_id: str) -> list:
     cutoff = db.date_add(56)
     sql = f"""SELECT exercise_canonical, side, COUNT(DISTINCT session_date) as session_count,
         MAX(CASE WHEN is_warmup = 0 THEN {db.nvl('weight_kg', 'machine_level * 2', '1')} END) as max_load,
         AVG(CASE WHEN is_warmup = 0 THEN rpe END) as avg_rpe,
         MAX(session_date) as last_date
-        FROM workout_sets WHERE session_date >= {cutoff}
+        FROM workout_sets WHERE user_id = ? AND session_date >= {cutoff}
         GROUP BY exercise_canonical, side ORDER BY exercise_canonical"""
-    rows = db.query(sql)
+    rows = db.query(sql, (user_id,))
     result = []
     for r in rows:
         ex, side = r["exercise_canonical"], r.get("side") or ""
         full_name = f"{ex} {side}".strip() if side else ex
         trend_sql = f"""SELECT session_date,
             {db.nvl('weight_kg', 'machine_level * 2', '1')} as load_val, rpe
-            FROM workout_sets WHERE exercise_canonical = ?
+            FROM workout_sets WHERE user_id = ? AND exercise_canonical = ?
             AND COALESCE(side, '') = ? AND is_warmup = 0 AND session_date >= {cutoff}
             ORDER BY session_date"""
-        trend_rows = db.query(trend_sql, (ex, side))
+        trend_rows = db.query(trend_sql, (user_id, ex, side))
         trend, status = "flat", "new"
         if len(trend_rows) >= 4:
             mid = len(trend_rows) // 2
@@ -465,11 +664,11 @@ def get_exercise_metrics():
         elif trend_rows:
             status = "new"
         latest_sql = f"""SELECT {db.nvl('weight_kg', 'machine_level * 2', '1')} as load_val
-            FROM workout_sets WHERE exercise_canonical = ? AND COALESCE(side, '') = ?
+            FROM workout_sets WHERE user_id = ? AND exercise_canonical = ? AND COALESCE(side, '') = ?
             AND is_warmup = 0 ORDER BY session_date DESC, set_number DESC LIMIT 1"""
         if db.driver == "oracle":
             latest_sql = latest_sql.replace("LIMIT 1", "FETCH FIRST 1 ROWS ONLY")
-        latest = db.query(latest_sql, (ex, side))
+        latest = db.query(latest_sql, (user_id, ex, side))
         result.append({
             "exercise": full_name, "canonical": ex, "side": side,
             "sessions": r["session_count"], "current_load": latest[0]["load_val"] if latest else None,
@@ -479,8 +678,7 @@ def get_exercise_metrics():
     return result
 
 
-@app.get("/metrics/volume")
-def get_volume_metrics():
+def _volume_metrics(user_id: str) -> list:
     cutoff = db.date_add(84)
     if db.driver == "oracle":
         week_col = "TO_CHAR(session_date, 'IW')"
@@ -488,9 +686,9 @@ def get_volume_metrics():
         week_col = "strftime('%W', session_date)"
     sql = f"""SELECT {week_col} as week_num, exercise_canonical,
         SUM(reps * {db.nvl('weight_kg', 'machine_level * 2', '1')}) as volume
-        FROM workout_sets WHERE is_warmup = 0 AND session_date >= {cutoff}
+        FROM workout_sets WHERE user_id = ? AND is_warmup = 0 AND session_date >= {cutoff}
         GROUP BY {week_col}, exercise_canonical ORDER BY week_num"""
-    rows = db.query(sql)
+    rows = db.query(sql, (user_id,))
     weeks = {}
     for r in rows:
         muscle = EXERCISE_MUSCLE.get(r["exercise_canonical"], "other")
@@ -502,15 +700,14 @@ def get_volume_metrics():
             for w in sorted(weeks.keys())]
 
 
-@app.get("/metrics/asymmetry")
-def get_asymmetry_metrics():
+def _asymmetry_metrics(user_id: str) -> list:
     cutoff = db.date_add(28)
     sql = f"""SELECT exercise_canonical, side,
         AVG(reps) as avg_reps, AVG(rpe) as avg_rpe
-        FROM workout_sets WHERE side IS NOT NULL AND side IN ('RS','LS')
+        FROM workout_sets WHERE user_id = ? AND side IS NOT NULL AND side IN ('RS','LS')
         AND is_warmup = 0 AND session_date >= {cutoff}
         GROUP BY exercise_canonical, side"""
-    rows = db.query(sql)
+    rows = db.query(sql, (user_id,))
     by_ex = {}
     for r in rows:
         ex = r["exercise_canonical"]
@@ -530,6 +727,21 @@ def get_asymmetry_metrics():
                 "rpe_gap": round(rpe_gap, 2), "flagged": pct > 20
             })
     return result
+
+
+@app.get("/metrics/exercises")
+def get_exercise_metrics(user_id: str = Depends(require_user_id)):
+    return _exercise_metrics(user_id)
+
+
+@app.get("/metrics/volume")
+def get_volume_metrics(user_id: str = Depends(require_user_id)):
+    return _volume_metrics(user_id)
+
+
+@app.get("/metrics/asymmetry")
+def get_asymmetry_metrics(user_id: str = Depends(require_user_id)):
+    return _asymmetry_metrics(user_id)
 
 
 def _is_in_workout_type(exercise: str, workout_type: str) -> bool:
@@ -589,24 +801,29 @@ def _fallback_recommendation(workout_type: str):
 # ------------------------------------------------------------------
 
 @app.get("/recommend")
-def get_recommendation(workout_type: str = "Push Day"):
-    metrics = get_exercise_metrics()
-    asymmetry = get_asymmetry_metrics()
-    volume = get_volume_metrics()
+def get_recommendation(workout_type: str = "Push Day", user_id: str = Depends(require_user_id)):
+    metrics = _exercise_metrics(user_id)
+    asymmetry = _asymmetry_metrics(user_id)
+    volume = _volume_metrics(user_id)
     relevant = [m for m in metrics if _is_in_workout_type(m["canonical"], workout_type)]
 
-    sql = """SELECT session_date, exercise_name, reps,
+    sql = ("""SELECT session_date, exercise_name, reps,
         COALESCE(weight_kg, machine_level * 2, 1) as load_val, rpe, notes
-        FROM workout_sets WHERE workout_type = ?
+        FROM workout_sets WHERE user_id = ? AND workout_type = ?
         ORDER BY session_date DESC, set_number"""
-    recent = db.query(sql, (workout_type,))
+        if db.driver == "sqlite"
+        else """SELECT session_date, exercise_name, reps,
+        COALESCE(weight_kg, machine_level * 2, 1) as load_val, rpe, notes
+        FROM workout_sets WHERE user_id = :1 AND workout_type = :2
+        ORDER BY session_date DESC, set_number""")
+    recent = db.query(sql, (user_id, workout_type))
     sessions = {}
     for r in recent:
         sessions.setdefault(r["session_date"], []).append(r)
     last_3 = [{"date": d, "sets": sessions[d]} for d in sorted(sessions.keys(), reverse=True)[:3]]
 
     context = {
-        "user_goals": USER_GOALS,
+        "user_goals": _load_user_goals(user_id),
         "exercise_status": relevant,
         "asymmetries": asymmetry,
         "last_sessions": last_3,
@@ -650,20 +867,20 @@ def get_recommendation(workout_type: str = "Push Day"):
 
 
 @app.post("/chat")
-def chat_endpoint(req: ChatRequest, x_user_id: str = Header(default="default")):
+def chat_endpoint(req: ChatRequest, user_id: str = Depends(require_user_id)):
     if not bb_client:
         return {"reply": "Backboard API is not configured. Set BACKBOARD_API_KEY in your environment."}
 
     try:
-        assistant_id = _get_user_assistant(x_user_id)
+        assistant_id = _get_user_assistant(user_id)
     except httpx.HTTPError as e:
-        print(f"Failed to provision assistant for {x_user_id}: {e}")
+        print(f"Failed to provision assistant for {user_id}: {e}")
         return {"reply": "I'm having trouble reaching the AI service. Please try again later."}
 
-    thread_id = USER_CHAT_THREADS.get(x_user_id)
+    thread_id = USER_CHAT_THREADS.get(user_id)
     if not thread_id:
         thread_id = bb_client.create_thread(assistant_id)
-        USER_CHAT_THREADS[x_user_id] = thread_id
+        USER_CHAT_THREADS[user_id] = thread_id
 
     try:
         res = bb_client.add_message(thread_id, req.message, memory="Auto")
@@ -682,7 +899,7 @@ def chat_endpoint(req: ChatRequest, x_user_id: str = Header(default="default")):
                 fn_name = tc.get("function", {}).get("name", "")
                 args = _parse_tool_args(tc)
                 print(f"[Tool] {fn_name}({args})")
-                result = _dispatch_tool(fn_name, args)
+                result = _dispatch_tool(fn_name, args, user_id)
                 tool_outputs.append({
                     "tool_call_id": tc.get("id"),
                     "output": json.dumps(result),
@@ -700,7 +917,7 @@ def chat_endpoint(req: ChatRequest, x_user_id: str = Header(default="default")):
 # ------------------------------------------------------------------
 
 @app.post("/workouts")
-def log_workout(body: LogWorkout):
+def log_workout(body: LogWorkout, user_id: str = Depends(require_user_id)):
     rows = []
     for ex in body.exercises:
         for s in ex.sets:
@@ -709,7 +926,7 @@ def log_workout(body: LogWorkout):
                 ex.side, s.set_number, s.reps, None, s.weight_kg, s.machine_level,
                 s.is_warmup, s.rpe, s.notes
             ))
-    db.insert(rows)
+    db.insert(rows, user_id)
     return {"row_count": len(rows)}
 
 

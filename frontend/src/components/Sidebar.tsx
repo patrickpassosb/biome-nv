@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Calendar, TrendingUp, Dumbbell, MessageCircle, Bot } from 'lucide-react';
-import { useUser } from '../contexts/UserContext';
+import { useUser, getInitial } from '../contexts/UserContext';
 import ProfileSelectorModal from './ProfileSelectorModal';
 
 const navItems = [
@@ -31,7 +31,7 @@ export default function Sidebar() {
             className="w-full px-6 mb-8 flex items-center gap-3 text-left hover:bg-surface-container-low transition-colors py-2"
           >
             <div className="w-10 h-10 rounded-full bg-surface-container-high border border-border flex items-center justify-center text-primary-container font-bold text-sm">
-              {activeUser.initial}
+              {getInitial(activeUser.name)}
             </div>
             <div>
               <div className="font-sans text-sm tracking-tight font-medium text-white">{activeUser.name}</div>
