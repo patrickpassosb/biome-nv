@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from db import db
-from backboard import BACKBOARD_API_KEY
+from backboard_client import BACKBOARD_API_KEY
 from routes import router
 
 

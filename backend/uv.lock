@@ -42,12 +42,25 @@ wheels = [
 ]
 
 [[package]]
+name = "backboard-sdk"
+version = "1.5.13"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/90/e4/0ae22d57b7a6bddcf74c79b8aa6a9dcc7c71bf1c0545f86005f94ed23444/backboard_sdk-1.5.13.tar.gz", hash = "sha256:9c47bd9c62e84ebdf9bdd88770a6b97f9ac6b63925fb5b151199de17b632f6fa", size = 30311, upload-time = "2026-04-16T19:16:44.01Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cd/48/8289ceb2dc610a8f5797a9d5c603b7e178aa3e6db9b0ed929d814879364b/backboard_sdk-1.5.13-py3-none-any.whl", hash = "sha256:223d52bb9b5c90451f8aa60b5c8dacc09aaae6c277016226f95a42729ce61896", size = 17794, upload-time = "2026-04-16T19:16:43.023Z" },
+]
+
+[[package]]
 name = "biome-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "backboard-sdk" },
     { name = "fastapi" },
-    { name = "httpx" },
     { name = "oracledb" },
     { name = "pandas" },
     { name = "python-dotenv" },
@@ -62,8 +75,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "backboard-sdk", specifier = ">=1.5.13" },
     { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "httpx", specifier = ">=0.27.0" },
     { name = "oracledb", specifier = ">=2.5.0" },
     { name = "pandas", specifier = ">=2.2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },

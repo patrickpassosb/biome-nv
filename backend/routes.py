@@ -4,17 +4,16 @@ import json
 import uuid
 from datetime import datetime
 from typing import Dict, Any
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from backboard.exceptions import BackboardError
 
 from db import db, DEFAULT_GOALS_SEED
-from backboard import (
+from backboard_client import (
     bb_client,
     USER_ASSISTANTS,
     USER_CHAT_THREADS,
     get_user_assistant,
     get_recommender_assistant,
-    parse_tool_args,
 )
 from deps import require_user_id
 from schemas import ChatRequest, LogWorkout, ProfileCreate
@@ -360,7 +359,7 @@ def _fallback_recommendation(workout_type: str):
 # ------------------------------------------------------------------
 
 @router.get("/recommend")
-def get_recommendation(workout_type: str = "Push Day", user_id: str = Depends(require_user_id)):
+async def get_recommendation(workout_type: str = "Push Day", user_id: str = Depends(require_user_id)):
     metrics = _exercise_metrics(user_id)
     asymmetry = _asymmetry_metrics(user_id)
     volume = _volume_metrics(user_id)
@@ -398,76 +397,80 @@ def get_recommendation(workout_type: str = "Push Day", user_id: str = Depends(re
     # on a shared no-memory assistant. memory="Off" keeps the rec context out
     # of the user's chat memory.
     try:
-        assistant_id = get_recommender_assistant()
-        thread_id = bb_client.create_thread(assistant_id)
-        res = bb_client.add_message(thread_id, user_message, memory="Off")
+        assistant_id = await get_recommender_assistant()
+        thread = await bb_client.create_thread(assistant_id)
+        res = await bb_client.add_message(
+            thread_id=thread.thread_id, content=user_message, memory="Off"
+        )
 
-        content = res.get("content")
-        if content:
+        if res.content:
             try:
-                return json.loads(content)
+                return json.loads(res.content)
             except json.JSONDecodeError:
                 pass
 
         # Single retry — the LLM occasionally wraps JSON in markdown or trailing prose.
-        retry = bb_client.add_message(
-            thread_id,
-            "Your last response wasn't valid JSON. Re-output ONLY the JSON object — "
-            "no markdown fences, no commentary.",
+        retry = await bb_client.add_message(
+            thread_id=thread.thread_id,
+            content=(
+                "Your last response wasn't valid JSON. Re-output ONLY the JSON object — "
+                "no markdown fences, no commentary."
+            ),
             memory="Off",
         )
         try:
-            return json.loads(retry.get("content") or "")
+            return json.loads(retry.content or "")
         except json.JSONDecodeError:
             return _fallback_recommendation(workout_type)
-    except httpx.HTTPError as e:
-        print(f"Recommend error: {e}")
+    except BackboardError as e:
+        print(f"Backboard error: {e}")
         return _fallback_recommendation(workout_type)
 
 
 @router.post("/chat")
-def chat_endpoint(req: ChatRequest, user_id: str = Depends(require_user_id)):
+async def chat_endpoint(req: ChatRequest, user_id: str = Depends(require_user_id)):
     if not bb_client:
         return {"reply": "Backboard API is not configured. Set BACKBOARD_API_KEY in your environment."}
 
     try:
-        assistant_id = get_user_assistant(user_id)
-    except httpx.HTTPError as e:
-        print(f"Failed to provision assistant for {user_id}: {e}")
-        return {"reply": "I'm having trouble reaching the AI service. Please try again later."}
+        assistant_id = await get_user_assistant(user_id)
 
-    thread_id = USER_CHAT_THREADS.get(user_id)
-    if not thread_id:
-        thread_id = bb_client.create_thread(assistant_id)
-        USER_CHAT_THREADS[user_id] = thread_id
+        thread_id = USER_CHAT_THREADS.get(user_id)
+        if not thread_id:
+            thread = await bb_client.create_thread(assistant_id)
+            thread_id = thread.thread_id
+            USER_CHAT_THREADS[user_id] = thread_id
 
-    try:
-        res = bb_client.add_message(thread_id, req.message, memory="Auto")
+        res = await bb_client.add_message(
+            thread_id=thread_id, content=req.message, memory="Auto"
+        )
 
         # Tool-calling loop — see Backboard cookbook recipe 03.
         # Cap iterations so a buggy LLM can't loop us forever.
         max_iterations = 5
         while (
-            res.get("status") == "REQUIRES_ACTION"
-            and res.get("tool_calls")
+            res.status == "REQUIRES_ACTION"
+            and res.tool_calls
             and max_iterations > 0
         ):
             max_iterations -= 1
             tool_outputs = []
-            for tc in res["tool_calls"]:
-                fn_name = tc.get("function", {}).get("name", "")
-                args = parse_tool_args(tc)
+            for tc in res.tool_calls:
+                fn_name = tc.function.name
+                args = tc.function.parsed_arguments or {}
                 print(f"[Tool] {fn_name}({args})")
                 result = _dispatch_tool(fn_name, args, user_id)
                 tool_outputs.append({
-                    "tool_call_id": tc.get("id"),
+                    "tool_call_id": tc.id,
                     "output": json.dumps(result),
                 })
-            res = bb_client.submit_tool_outputs(thread_id, res.get("run_id"), tool_outputs)
+            res = await bb_client.submit_tool_outputs(
+                thread_id=thread_id, run_id=res.run_id, tool_outputs=tool_outputs
+            )
 
-        return {"reply": res.get("content") or "I received an empty response from the AI."}
-    except httpx.HTTPError as e:
-        print(f"Chat error: {e}")
+        return {"reply": res.content or "I received an empty response from the AI."}
+    except BackboardError as e:
+        print(f"Backboard error: {e}")
         return {"reply": "I'm having trouble connecting to the AI service. Please try again later."}
 
 
